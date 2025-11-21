@@ -31,15 +31,10 @@ def load_image(image_path):
         image_path: Path to the image file
     
     Returns:
-        Preprocessed image tensor
+        PIL Image object
     """
     try:
-        # Open image
         img = Image.open(image_path).convert('RGB')
-        
-        # Resize to 32x32 (CIFAR-10 image size)
-        img = img.resize((32, 32), Image.Resampling.LANCZOS)
-        
         return img
     except Exception as e:
         print(f"Error loading image: {e}")
@@ -48,7 +43,7 @@ def load_image(image_path):
 
 def preprocess_image(image):
     """
-    Preprocess image for the model
+    Preprocess image for the model - improved preprocessing
     
     Args:
         image: PIL Image object
@@ -56,13 +51,16 @@ def preprocess_image(image):
     Returns:
         Preprocessed tensor ready for model
     """
+    # Better preprocessing: center crop then resize to preserve important features
     transform = transforms.Compose([
+        transforms.Resize((256, 256)),  # First resize to larger size
+        transforms.CenterCrop(224),     # Center crop to focus on main object
+        transforms.Resize((32, 32)),    # Resize to model input size
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], 
                            std=[0.229, 0.224, 0.225])
     ])
     
-    # Add batch dimension
     img_tensor = transform(image).unsqueeze(0)
     return img_tensor
 
