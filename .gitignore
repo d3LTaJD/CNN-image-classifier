@@ -11,8 +11,8 @@ ENV/
 
 # Data and Models (too large for GitHub)
 data/
-models/*.pth
-models/*.pkl
+# models/*.pth  # Commented out for Streamlit Cloud deployment - model file needed
+# models/*.pkl
 *.h5
 *.ckpt
 

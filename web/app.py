@@ -596,7 +596,7 @@ def main():
         st.markdown("---")
         st.markdown('<div class="sidebar-title">⚙️ Settings</div>', unsafe_allow_html=True)
         st.markdown('<div class="settings-label">Show top predictions</div>', unsafe_allow_html=True)
-        top_k = st.slider("", 1, 10, 3, label_visibility="collapsed", help="Number of top predictions to display")
+        top_k = st.slider("Number of top predictions", 1, 10, 3, label_visibility="collapsed", help="Number of top predictions to display")
         st.markdown(f"""
         <p style="color: #FFFFFF; text-shadow: 1px 1px 3px rgba(0,0,0,0.6); font-size: 0.85rem; margin-top: 0.5rem;">
             Currently showing: <strong>{top_k}</strong> predictions
