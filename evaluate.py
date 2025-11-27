@@ -1,5 +1,5 @@
 """
-Evaluation Script for Trained CNN Model
+Evaluate trained CNN model
 """
 
 import torch
@@ -15,47 +15,30 @@ from sklearn.metrics import classification_report
 
 
 def load_test_data(batch_size=64):
-    """Load CIFAR-100 test dataset with 20 superclasses"""
+    """Load CIFAR-100 test set with 20 superclasses"""
     test_transform = transforms.Compose([
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], 
-                           std=[0.229, 0.224, 0.225])
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
     
-    test_dataset = datasets.CIFAR100(
-        root='./data', 
-        train=False, 
-        download=True, 
-        transform=test_transform
-    )
+    test_dataset = datasets.CIFAR100(root='./data', train=False, download=True, transform=test_transform)
     
-    # Convert fine labels to coarse labels (20 superclasses)
+    # Map 100 fine classes to 20 coarse classes
     coarse_labels = [
-        4, 1, 14, 8, 0, 6, 7, 7, 18, 3,
-        3, 14, 9, 18, 7, 11, 3, 9, 7, 11,
-        6, 11, 5, 10, 7, 6, 13, 15, 3, 15,
-        0, 11, 1, 10, 12, 14, 16, 9, 11, 5,
-        5, 19, 8, 8, 15, 13, 14, 17, 18, 10,
-        16, 4, 17, 4, 2, 0, 17, 4, 18, 17,
-        10, 3, 2, 12, 12, 16, 12, 1, 9, 19,
-        2, 10, 0, 1, 16, 12, 9, 13, 15, 13,
-        16, 19, 2, 4, 6, 19, 5, 5, 8, 19,
-        18, 1, 2, 15, 6, 0, 17, 8, 14, 13
+        4, 1, 14, 8, 0, 6, 7, 7, 18, 3, 3, 14, 9, 18, 7, 11, 3, 9, 7, 11,
+        6, 11, 5, 10, 7, 6, 13, 15, 3, 15, 0, 11, 1, 10, 12, 14, 16, 9, 11, 5,
+        5, 19, 8, 8, 15, 13, 14, 17, 18, 10, 16, 4, 17, 4, 2, 0, 17, 4, 18, 17,
+        10, 3, 2, 12, 12, 16, 12, 1, 9, 19, 2, 10, 0, 1, 16, 12, 9, 13, 15, 13,
+        16, 19, 2, 4, 6, 19, 5, 5, 8, 19, 18, 1, 2, 15, 6, 0, 17, 8, 14, 13
     ]
     
-    # Convert fine labels to coarse labels
     if isinstance(test_dataset.targets, list):
         test_dataset.targets = [coarse_labels[label] for label in test_dataset.targets]
     else:
         targets_list = test_dataset.targets.tolist() if hasattr(test_dataset.targets, 'tolist') else list(test_dataset.targets)
         test_dataset.targets = [coarse_labels[label] for label in targets_list]
     
-    test_loader = DataLoader(
-        test_dataset, 
-        batch_size=batch_size, 
-        shuffle=False, 
-        num_workers=2
-    )
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=2)
     
     class_names = [
         'aquatic_mammals', 'fish', 'flowers', 'food_containers', 'fruit_and_vegetables',
@@ -69,45 +52,34 @@ def load_test_data(batch_size=64):
 
 
 def evaluate_model(model_path, device='cpu', visualize=True):
-    """
-    Evaluate a trained model
-    
-    Args:
-        model_path: Path to saved model checkpoint
-        device: Device to run evaluation on
-        visualize: Whether to generate visualizations
-    """
+    """Evaluate trained model"""
     print("=" * 60)
     print("Model Evaluation")
     print("=" * 60)
     
-    # Setup device
     device = torch.device(device)
     print(f"Using device: {device}")
     
-    # Load test data
     print("\nLoading test dataset...")
     test_loader, class_names = load_test_data(batch_size=64)
     print(f"Test samples: {len(test_loader.dataset)}")
     
-    # Load model
     print(f"\nLoading model from {model_path}...")
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"Model file not found: {model_path}")
     
     checkpoint = torch.load(model_path, map_location=device)
-    config = checkpoint.get('config', {'num_classes': 10})
+    config = checkpoint.get('config', {'num_classes': 20})
     
-    model = get_model(num_classes=config['num_classes'], dropout_rate=0.5)
+    model = get_model(num_classes=config['num_classes'], dropout_rate=0.4)
     model.load_state_dict(checkpoint['model_state_dict'])
     model = model.to(device)
     model.eval()
     
     print(f"Model loaded (trained for {checkpoint['epoch']} epochs)")
     if 'test_acc' in checkpoint:
-        print(f"Best test accuracy during training: {checkpoint['test_acc']:.2f}%")
+        print(f"Best test accuracy: {checkpoint['test_acc']:.2f}%")
     
-    # Evaluate
     print("\nEvaluating model...")
     criterion = nn.CrossEntropyLoss()
     running_loss = 0.0
@@ -137,26 +109,19 @@ def evaluate_model(model_path, device='cpu', visualize=True):
     print("\n" + "=" * 60)
     print("Evaluation Results")
     print("=" * 60)
-    print(f"Test Loss:  {test_loss:.4f}")
-    print(f"Test Accuracy:  {test_acc:.2f}%")
-    print(f"Correct Predictions: {correct}/{total}")
+    print(f"Test Loss: {test_loss:.4f}")
+    print(f"Test Accuracy: {test_acc:.2f}%")
+    print(f"Correct: {correct}/{total}")
     
-    # Classification report
     print("\n" + "-" * 60)
     print("Per-class Performance:")
     print("-" * 60)
     print(classification_report(all_labels, all_predictions, target_names=class_names))
     
-    # Generate visualizations
     if visualize:
         print("\nGenerating visualizations...")
-        
-        # Confusion matrix
         plot_confusion_matrix(all_labels, all_predictions, class_names)
-        
-        # Prediction samples
         visualize_predictions(model, test_loader, class_names, num_samples=16, device=device)
-        
         print("\nVisualizations saved to outputs/ directory")
     
     print("\n" + "=" * 60)
@@ -166,18 +131,9 @@ def evaluate_model(model_path, device='cpu', visualize=True):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Evaluate trained CNN model')
-    parser.add_argument('--model', type=str, default='models/cnn_cifar100_20.pth',
-                        help='Path to model checkpoint')
-    parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu',
-                        help='Device to use (cuda/cpu)')
-    parser.add_argument('--no-vis', action='store_true',
-                        help='Skip generating visualizations')
+    parser.add_argument('--model', type=str, default='models/cnn_cifar100_20.pth', help='Path to model checkpoint')
+    parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu', help='Device to use')
+    parser.add_argument('--no-vis', action='store_true', help='Skip visualizations')
     
     args = parser.parse_args()
-    
-    evaluate_model(
-        model_path=args.model,
-        device=args.device,
-        visualize=not args.no_vis
-    )
-
+    evaluate_model(args.model, args.device, visualize=not args.no_vis)

@@ -1,5 +1,5 @@
 """
-Predict on your own custom images using the trained CNN model
+Predict on custom images using trained CNN model
 """
 
 import torch
@@ -13,7 +13,6 @@ import numpy as np
 from model import get_model
 
 
-# CIFAR-100 (20 superclasses) class names
 CLASS_NAMES = [
     'aquatic_mammals', 'fish', 'flowers', 'food_containers', 'fruit_and_vegetables',
     'household_electrical_devices', 'household_furniture', 'insects', 'large_carnivores',
@@ -24,86 +23,46 @@ CLASS_NAMES = [
 
 
 def load_image(image_path):
-    """
-    Load and preprocess an image for prediction
-    
-    Args:
-        image_path: Path to the image file
-    
-    Returns:
-        PIL Image object
-    """
+    """Load image from file"""
     try:
-        img = Image.open(image_path).convert('RGB')
-        return img
+        return Image.open(image_path).convert('RGB')
     except Exception as e:
         print(f"Error loading image: {e}")
         return None
 
 
 def preprocess_image(image):
-    """
-    Preprocess image for the model - improved preprocessing
-    
-    Args:
-        image: PIL Image object
-    
-    Returns:
-        Preprocessed tensor ready for model
-    """
-    # Better preprocessing: center crop then resize to preserve important features
+    """Preprocess image for model input"""
     transform = transforms.Compose([
-        transforms.Resize((256, 256)),  # First resize to larger size
-        transforms.CenterCrop(224),     # Center crop to focus on main object
-        transforms.Resize((32, 32)),    # Resize to model input size
+        transforms.Resize((256, 256)),
+        transforms.CenterCrop(224),
+        transforms.Resize((32, 32)),
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], 
-                           std=[0.229, 0.224, 0.225])
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
-    
-    img_tensor = transform(image).unsqueeze(0)
-    return img_tensor
+    return transform(image).unsqueeze(0)
 
 
 def predict_image(model, image_path, device='cpu', show_top_k=3):
-    """
-    Predict class for a single image
-    
-    Args:
-        model: Trained model
-        image_path: Path to image file
-        device: Device to run inference on
-        show_top_k: Number of top predictions to show
-    
-    Returns:
-        Dictionary with predictions
-    """
-    # Load and preprocess image
+    """Predict class for single image"""
     image = load_image(image_path)
     if image is None:
         return None
     
-    # Preprocess
-    img_tensor = preprocess_image(image)
-    img_tensor = img_tensor.to(device)
+    img_tensor = preprocess_image(image).to(device)
     
-    # Make prediction
     model.eval()
     with torch.no_grad():
         outputs = model(img_tensor)
         probabilities = F.softmax(outputs, dim=1)
         confidence, predicted = torch.max(probabilities, 1)
-        
-        # Get top-k predictions
         top_k_probs, top_k_indices = torch.topk(probabilities, k=show_top_k, dim=1)
     
-    # Convert to numpy
     confidence = confidence.cpu().item()
     predicted_idx = predicted.cpu().item()
     top_k_probs = top_k_probs.cpu().numpy()[0]
     top_k_indices = top_k_indices.cpu().numpy()[0]
     
-    # Get top-k results
     top_k_results = []
     for i in range(show_top_k):
         top_k_results.append({
@@ -120,19 +79,13 @@ def predict_image(model, image_path, device='cpu', show_top_k=3):
 
 
 def display_prediction(image_path, result):
-    """
-    Display prediction results
-    
-    Args:
-        image_path: Path to image
-        result: Prediction result dictionary
-    """
+    """Print prediction results"""
     print("\n" + "=" * 60)
     print(f"Image: {os.path.basename(image_path)}")
     print("=" * 60)
-    print(f"Predicted Class: {result['predicted_class']}")
+    print(f"Predicted: {result['predicted_class']}")
     print(f"Confidence: {result['confidence']:.2f}%")
-    print("\nTop {} Predictions:".format(len(result['top_k'])))
+    print(f"\nTop {len(result['top_k'])} Predictions:")
     print("-" * 60)
     for i, pred in enumerate(result['top_k'], 1):
         print(f"{i}. {pred['class']:15s}: {pred['confidence']:5.2f}%")
@@ -140,122 +93,90 @@ def display_prediction(image_path, result):
 
 
 def predict_single_image(image_path, model_path='models/cnn_cifar100_20.pth', device='cpu'):
-    """
-    Predict on a single image
-    
-    Args:
-        image_path: Path to image file
-        model_path: Path to trained model
-        device: Device to use (cuda/cpu)
-    """
-    # Check if image exists
+    """Predict on single image"""
     if not os.path.exists(image_path):
-        print(f"Error: Image file not found: {image_path}")
+        print(f"Error: Image not found: {image_path}")
         return
     
-    # Check if model exists
     if not os.path.exists(model_path):
-        print(f"Error: Model file not found: {model_path}")
-        print("Please train the model first by running: python train.py")
+        print(f"Error: Model not found: {model_path}")
+        print("Train the model first: python train.py")
         return
     
     print("Loading model...")
     device = torch.device(device)
     
-    # Load model
     checkpoint = torch.load(model_path, map_location=device)
-    config = checkpoint.get('config', {'num_classes': 10})
+    config = checkpoint.get('config', {'num_classes': 20})
     
-    model = get_model(num_classes=config['num_classes'], dropout_rate=0.5)
+    model = get_model(num_classes=config['num_classes'], dropout_rate=0.4)
     model.load_state_dict(checkpoint['model_state_dict'])
     model = model.to(device)
     model.eval()
     
-    print(f"Model loaded successfully (trained for {checkpoint['epoch']} epochs)")
-    
-    # Make prediction
-    print(f"\nAnalyzing image: {image_path}")
+    print(f"Model loaded (trained for {checkpoint['epoch']} epochs)")
+    print(f"\nAnalyzing: {image_path}")
     result = predict_image(model, image_path, device, show_top_k=3)
     
     if result:
         display_prediction(image_path, result)
         
-        # Save visualization if matplotlib is available
         try:
             import matplotlib.pyplot as plt
             fig, axes = plt.subplots(1, 2, figsize=(12, 5))
             
-            # Original image
             axes[0].imshow(result['image'])
             axes[0].set_title('Input Image', fontsize=12, fontweight='bold')
             axes[0].axis('off')
             
-            # Prediction results
             axes[1].axis('off')
             info_text = f"Predicted: {result['predicted_class']}\n"
-            info_text += f"Confidence: {result['confidence']:.2f}%\n\n"
-            info_text += "Top Predictions:\n"
+            info_text += f"Confidence: {result['confidence']:.2f}%\n\nTop Predictions:\n"
             for i, pred in enumerate(result['top_k'], 1):
                 info_text += f"{i}. {pred['class']}: {pred['confidence']:.2f}%\n"
             
-            axes[1].text(0.1, 0.5, info_text, fontsize=12, 
-                        verticalalignment='center', family='monospace',
-                        bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+            axes[1].text(0.1, 0.5, info_text, fontsize=12, verticalalignment='center',
+                        family='monospace', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
             
             plt.tight_layout()
             os.makedirs('outputs', exist_ok=True)
             output_path = f"outputs/prediction_{os.path.basename(image_path)}.png"
             plt.savefig(output_path, dpi=150, bbox_inches='tight')
             plt.close()
-            print(f"\n✓ Visualization saved to: {output_path}")
+            print(f"\n✓ Saved to: {output_path}")
         except ImportError:
             pass
     else:
-        print("Failed to make prediction.")
+        print("Prediction failed.")
 
 
 def predict_folder(folder_path, model_path='models/cnn_cifar100_20.pth', device='cpu'):
-    """
-    Predict on all images in a folder
-    
-    Args:
-        folder_path: Path to folder containing images
-        model_path: Path to trained model
-        device: Device to use (cuda/cpu)
-    """
-    # Supported image formats
+    """Predict on all images in folder"""
     valid_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tiff'}
     
-    # Get all image files
-    image_files = []
-    for file in os.listdir(folder_path):
-        if os.path.splitext(file.lower())[1] in valid_extensions:
-            image_files.append(os.path.join(folder_path, file))
+    image_files = [os.path.join(folder_path, f) for f in os.listdir(folder_path)
+                   if os.path.splitext(f.lower())[1] in valid_extensions]
     
     if not image_files:
-        print(f"No image files found in: {folder_path}")
+        print(f"No images found in: {folder_path}")
         return
     
-    print(f"Found {len(image_files)} image(s) in folder")
-    
-    # Load model once
+    print(f"Found {len(image_files)} image(s)")
     print("\nLoading model...")
     device = torch.device(device)
     
     if not os.path.exists(model_path):
-        print(f"Error: Model file not found: {model_path}")
-        print("Please train the model first by running: python train.py")
+        print(f"Error: Model not found: {model_path}")
         return
     
     checkpoint = torch.load(model_path, map_location=device)
-    config = checkpoint.get('config', {'num_classes': 10})
+    config = checkpoint.get('config', {'num_classes': 20})
     
-    model = get_model(num_classes=config['num_classes'], dropout_rate=0.5)
+    model = get_model(num_classes=config['num_classes'], dropout_rate=0.4)
     model.load_state_dict(checkpoint['model_state_dict'])
     model = model.to(device)
     model.eval()
     
-    # Predict on all images
     print("\n" + "=" * 60)
     print("Predictions:")
     print("=" * 60)
@@ -268,13 +189,11 @@ def predict_folder(folder_path, model_path='models/cnn_cifar100_20.pth', device=
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Predict on custom images using trained CNN')
-    parser.add_argument('--image', type=str, help='Path to single image file')
-    parser.add_argument('--folder', type=str, help='Path to folder containing images')
-    parser.add_argument('--model', type=str, default='models/cnn_cifar100_20.pth',
-                        help='Path to trained model (default: models/cnn_cifar100_20.pth)')
-    parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu',
-                        help='Device to use (cuda/cpu)')
+    parser = argparse.ArgumentParser(description='Predict on custom images')
+    parser.add_argument('--image', type=str, help='Path to image file')
+    parser.add_argument('--folder', type=str, help='Path to image folder')
+    parser.add_argument('--model', type=str, default='models/cnn_cifar100_20.pth', help='Model path')
+    parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu', help='Device')
     
     args = parser.parse_args()
     
@@ -283,19 +202,17 @@ def main():
     elif args.folder:
         predict_folder(args.folder, args.model, args.device)
     else:
-        print("Error: Please provide either --image or --folder")
-        print("\nUsage examples:")
-        print("  python predict_image.py --image path/to/your/image.jpg")
-        print("  python predict_image.py --folder path/to/image/folder")
-        print("\nOr use the interactive mode:")
+        print("Error: Provide --image or --folder")
+        print("\nUsage:")
+        print("  python predict_image.py --image path/to/image.jpg")
+        print("  python predict_image.py --folder path/to/folder")
+        print("\nOr interactive mode:")
         print("  python predict_image.py")
         
-        # Interactive mode
         print("\n" + "=" * 60)
         print("Interactive Mode")
         print("=" * 60)
-        
-        image_path = input("\nEnter path to your image: ").strip().strip('"')
+        image_path = input("\nEnter image path: ").strip().strip('"')
         
         if image_path:
             if os.path.isdir(image_path):
@@ -304,10 +221,7 @@ def main():
                 predict_single_image(image_path, args.model, args.device)
             else:
                 print(f"Error: Path not found: {image_path}")
-        else:
-            print("No path provided. Exiting.")
 
 
 if __name__ == "__main__":
     main()
-
