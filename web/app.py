@@ -741,7 +741,7 @@ def main():
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
-                st.progress(conf / 100)
+                st.progress(float(conf) / 100.0)
             
             # Additional info
             with st.expander("ℹ️ More Information", expanded=False):
